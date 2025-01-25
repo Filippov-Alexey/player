@@ -1,11 +1,13 @@
 import sys
 import os
+import time
 import json
 import tkinter as tk
 from tkinter import messagebox
 import vlc
 
 HISTORY_FILE = "history.json"
+HISTORY_FILES_FILE = "historyf.json"
 REWIND_FILE = "rewind.json"
 class MediaPlayer:
     def __init__(self, master):
@@ -26,7 +28,7 @@ class MediaPlayer:
         self.player.set_hwnd(self.video_frame.winfo_id())  # Установка окна
 
         self.play_button = tk.Button(master, text="Play", command=self.play)
-        self.play_button.pack(side=tk.BOTTOM)
+        # self.play_button.pack(side=tk.BOTTOM)
 
         # Переменные для медиаплеера
         self.media_file = None
@@ -66,12 +68,38 @@ class MediaPlayer:
 
     def check_playback(self):
         if self.player.get_state() == vlc.State.Ended:
+            if os.path.exists(HISTORY_FILES_FILE):
+                with open(HISTORY_FILES_FILE, 'r') as f:
+                    history = json.load(f)
+            else:
+                history = {}
+
+            # Обновляем или добавляем запись
+            history[self.media_file] = 1
+
+            # Записываем обновленный history обратно в файл
+            with open(HISTORY_FILES_FILE, 'w') as f:
+                json.dump(history, f)
+            time.sleep(1)
             self.master.quit()  # Завершение программы, если воспроизведение окончено
         else:
             self.master.after(1000, self.check_playback)  # Проверка состояния через 1 секунду
 
     def save_history(self):
         def update_history(file, time):
+            if os.path.exists(HISTORY_FILES_FILE):
+                with open(HISTORY_FILES_FILE, 'r') as f:
+                    history = json.load(f)
+            else:
+                history = {}
+
+            # Обновляем или добавляем запись
+            history[self.media_file] = 0
+
+            # Записываем обновленный history обратно в файл
+            with open(HISTORY_FILES_FILE, 'w') as f:
+                json.dump(history, f)
+
             if os.path.exists(HISTORY_FILE):
                 with open(HISTORY_FILE, 'r') as f:
                     history = json.load(f)
@@ -79,7 +107,7 @@ class MediaPlayer:
                 history = {}
 
             # Обновляем или добавляем запись
-            history[file] = time
+            history[self.media_file] = time
 
             # Записываем обновленный history обратно в файл
             with open(HISTORY_FILE, 'w') as f:
@@ -95,16 +123,20 @@ class MediaPlayer:
         record_time()  # Начинаем запись времени
 
     def load_history(self):
-        with open(HISTORY_FILE, 'r') as f:
-            history = json.load(f)
+        if len(sys.argv)>3:
+            if sys.argv[-1]==1:
+                if os.path.exists('historyf.json'):
 
-        self.media_file = sys.argv[1]
-        if self.media_file in history:
-            self.resume_time = history[self.media_file]
-            
-            # Устанавливаем время после воспроизведения
-            self.player.set_time(self.resume_time)
+                    with open(HISTORY_FILE, 'r') as f:
+                        history = json.load(f)
 
+                    self.media_file = sys.argv[1]
+                    if self.media_file in history:
+                        self.resume_time = history[self.media_file]
+                        
+                        # Устанавливаем время после воспроизведения
+                        self.player.set_time(self.resume_time)
+                        
     def rewind_key(self, event):
         current_time = self.player.get_time()
         new_time = max(current_time - 5000, 0)  # Не даем времени быть меньше 0
@@ -125,25 +157,29 @@ class MediaPlayer:
             self.his = {}  # Пустой словарь, если файл не существует
 
     def rewindv(self):
-        current_time = self.player.get_time()
-        print(f"Текущее время: {current_time}")
+        current_time = self.player.get_time()//1000
+        h=int(current_time//3600)
+        m=int((current_time%3600)//60)
+        s=int(current_time%60)
+        ms=(h*3600+m*60+s)*1000
+        # print(f"Текущее время: {h:02}:{m:02}:{s:02}\n\t{current_time}-{ms}")
 
         # Используем данные из self.his
         rewind_data = self.his  
-        print("Данные перемотки:", rewind_data)
+        # print("Данные перемотки:", rewind_data)
 
         file_rewind_info = rewind_data.get(self.media_file)
-        print("Информация о перемотке:", file_rewind_info)
+        # print("Информация о перемотке:", file_rewind_info)
         
         if file_rewind_info:
             # Проверяем, есть ли диапазоны перемотки для текущего файла
             for (start, end) in file_rewind_info:
-                print(f"Диапазон: {start}-{end}")
+                # print(f"Диапазон: {start}-{end}")
 
                 # Если текущее время находится в диапазоне перемотки
                 if start <= current_time <= end:
                     # Перематываем на начало диапазона
-                    print(f"Перематываем на начало диапазона: {start}")
+                    # print(f"Перематываем на начало диапазона: {start}")
                     self.player.set_time(end)
                     return  # Выходим, так как перемотка завершена
                 
